@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import get_settings
@@ -28,7 +29,34 @@ async def main() -> None:
     dp.include_router(stats_router)
 
     start_scheduler(bot)
-    await dp.start_polling(bot)
+
+    retry_delay = 5
+    try:
+        while True:
+            try:
+                await dp.start_polling(bot)
+                break
+            except TelegramNetworkError as exc:
+                logging.warning(
+                    "Telegram network error: %s. Retrying polling in %s seconds...",
+                    exc,
+                    retry_delay,
+                )
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60)
+            except OSError as exc:
+                logging.warning(
+                    "OS network error: %s. Retrying polling in %s seconds...",
+                    exc,
+                    retry_delay,
+                )
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60)
+            except Exception:
+                logging.exception("Unexpected fatal error while polling")
+                raise
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":
