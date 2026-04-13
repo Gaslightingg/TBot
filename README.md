@@ -25,12 +25,16 @@ cp .env.example .env
 - `GIRLFRIEND_ID` — Telegram ID девушки
 - `DB_PATH` — путь к SQLite (по умолчанию `data/mood_tracker.db`)
 - `REMINDER_HOUR_UTC`, `REMINDER_MINUTE_UTC` — время ежедневного напоминания (UTC)
+- `TELEGRAM_PROXY` — прокси для Telegram API (например, `http://user:pass@host:port`), если `api.telegram.org` недоступен напрямую
+- `MAX_POLLING_RETRIES` — лимит ретраев при сетевых ошибках (0 = бесконечно)
 
 ## Запуск
 
 ```bash
 python run.py
 ```
+
+Если бот пишет `Cannot connect to host api.telegram.org:443`, укажите рабочий `TELEGRAM_PROXY` в `.env`.
 
 ## Структура
 
