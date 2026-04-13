@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 import aiosqlite
@@ -29,21 +30,25 @@ CREATE INDEX IF NOT EXISTS idx_mood_items_entry_id ON mood_entry_items(mood_entr
 """
 
 
-async def get_connection(db_path: str) -> aiosqlite.Connection:
+@asynccontextmanager
+async def get_connection(db_path: str):
     conn = await aiosqlite.connect(db_path)
-    conn.row_factory = aiosqlite.Row
-    await conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        conn.row_factory = aiosqlite.Row
+        await conn.execute("PRAGMA foreign_keys = ON")
+        yield conn
+    finally:
+        await conn.close()
 
 
 async def init_db(db_path: str) -> None:
-    async with await get_connection(db_path) as conn:
+    async with get_connection(db_path) as conn:
         await conn.executescript(SCHEMA_SQL)
         await conn.commit()
 
 
 async def create_mood_entry(db_path: str, telegram_id: int, note: str | None) -> int:
-    async with await get_connection(db_path) as conn:
+    async with get_connection(db_path) as conn:
         cursor = await conn.execute(
             "INSERT INTO mood_entries (telegram_id, note) VALUES (?, ?)",
             (telegram_id, note),
@@ -59,7 +64,7 @@ async def add_mood_item(
     mood_label: str,
     score: int,
 ) -> None:
-    async with await get_connection(db_path) as conn:
+    async with get_connection(db_path) as conn:
         await conn.execute(
             """
             INSERT INTO mood_entry_items (mood_entry_id, mood_code, mood_label, score)
@@ -72,7 +77,7 @@ async def add_mood_item(
 
 async def get_entries_by_period(db_path: str, telegram_id: int, days: int) -> list[dict]:
     since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-    async with await get_connection(db_path) as conn:
+    async with get_connection(db_path) as conn:
         rows = await conn.execute_fetchall(
             """
             SELECT me.id, me.telegram_id, me.note, me.created_at,
@@ -88,7 +93,7 @@ async def get_entries_by_period(db_path: str, telegram_id: int, days: int) -> li
 
 
 async def get_last_entries(db_path: str, telegram_id: int, limit: int) -> list[dict]:
-    async with await get_connection(db_path) as conn:
+    async with get_connection(db_path) as conn:
         entry_rows = await conn.execute_fetchall(
             """
             SELECT id, telegram_id, note, created_at
